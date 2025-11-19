@@ -4,6 +4,7 @@ import google.generativeai as genai
 import jieba
 from collections import Counter
 import io
+import matplotlib.pyplot as plt # 確保引入 matplotlib
 
 # ==========================================
 # 1. 頁面設定
@@ -23,30 +24,37 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 側邊欄設定
+# 2. 側邊欄設定 (通關密語版)
 # ==========================================
 with st.sidebar:
     st.title("💎 Market Miner")
     st.markdown("---")
     
-    # 安全輸入 Key
-    api_key = st.text_input("請輸入 Gemini API Key", type="password", help="您的 Key 不會被儲存，僅用於本次運算")
+    # --- 修改重點：這裡改成輸入通關密語 ---
+    secret_pass = st.text_input("請輸入通關密語", type="password", help="請輸入那句大家都知道的實話")
     
-    if not api_key:
-        st.warning("⚠️ 請輸入金鑰以啟動")
+    # 你的真實 Key 藏在這裡
+    REAL_API_KEY = "AIzaSyB8i4WiAwK8DhszEYSYO13B0Y05mVi-zMc"
+    
+    if secret_pass == "丹尼斯好帥":
+        try:
+            genai.configure(api_key=REAL_API_KEY)
+            st.success("✅ 密碼正確！歡迎進入")
+            api_ready = True
+        except Exception as e:
+            st.error(f"系統錯誤: {e}")
+            st.stop()
+    elif not secret_pass:
+        st.warning("⚠️ 請輸入密語以啟動系統")
         st.stop()
     else:
-        try:
-            genai.configure(api_key=api_key)
-            st.success("✅ AI 連線成功")
-        except Exception as e:
-            st.error(f"金鑰錯誤: {e}")
-            st.stop()
+        st.error("❌ 密碼錯誤 (提示：誰最帥？)")
+        st.stop()
 
     st.markdown("---")
     mode = st.radio("功能選擇：", ["🌱 模式一：種子關鍵字生成", "⛏️ 模式二：數據挖掘分析"])
     st.markdown("---")
-    st.caption("v5.0 Streamlit Edition")
+    st.caption("v5.1 Dennis Edition")
 
 # ==========================================
 # 3. 核心函數
@@ -117,103 +125,104 @@ def analyze_nlp(keywords, top_n=20):
     return pd.DataFrame(Counter(filtered_words).most_common(top_n), columns=['關鍵詞 (Term)', '頻次 (Freq)'])
 
 # ==========================================
-# 4. 介面邏輯
+# 4. 介面邏輯 (需通過密碼驗證)
 # ==========================================
 
-# --- 模式一 ---
-if mode == "🌱 模式一：種子關鍵字生成":
-    st.header("🌱 Google Ads 種子關鍵字生成")
-    st.info("輸入主題，AI 自動生成 3 組策略關鍵字 (每組 10 個)，突破 Google 限制。")
-    
-    topic = st.text_input("請輸入產品或主題 (例如：益生菌)", "")
-    
-    if topic and st.button("🚀 生成策略"):
-        with st.spinner("AI 正在規劃搜尋戰術..."):
-            prompt = f"""
-            使用者主題：「{topic}」。
-            請生成 3 組 Google Keyword Planner 專用的種子關鍵字 (每組嚴格限制 10 個)。
-            請使用 Markdown 格式輸出，不要有多餘廢話。
-            
-            格式：
-            ### 1. 【市場大盤組】(流量型)
-            (10個品類大詞，逗號分隔)
-            
-            ### 2. 【精準轉化組】(痛點型)
-            (10個功效/副作用/問句詞，逗號分隔)
-            
-            ### 3. 【競品攔截組】(藍海型)
-            (10個競品或替代方案詞，逗號分隔)
-            """
-            result = call_gemini(prompt)
-            st.markdown(result)
-            st.success("請複製上方其中一組貼入 Google Ads。")
+if 'api_ready' in locals() and api_ready:
+    # --- 模式一 ---
+    if mode == "🌱 模式一：種子關鍵字生成":
+        st.header("🌱 Google Ads 種子關鍵字生成")
+        st.info("輸入主題，AI 自動生成 3 組策略關鍵字 (每組 10 個)。")
+        
+        topic = st.text_input("請輸入產品或主題 (例如：益生菌)", "")
+        
+        if topic and st.button("🚀 生成策略"):
+            with st.spinner("AI 正在規劃搜尋戰術..."):
+                prompt = f"""
+                使用者主題：「{topic}」。
+                請生成 3 組 Google Keyword Planner 專用的種子關鍵字 (每組嚴格限制 10 個)。
+                請使用 Markdown 格式輸出，不要有多餘廢話。
+                
+                格式：
+                ### 1. 【市場大盤組】(流量型)
+                (10個品類大詞，逗號分隔)
+                
+                ### 2. 【精準轉化組】(痛點型)
+                (10個功效/副作用/問句詞，逗號分隔)
+                
+                ### 3. 【競品攔截組】(藍海型)
+                (10個競品或替代方案詞，逗號分隔)
+                """
+                result = call_gemini(prompt)
+                st.markdown(result)
+                st.success("生成完成！請複製上方其中一組。")
 
-# --- 模式二 ---
-elif mode == "⛏️ 模式二：數據挖掘分析":
-    st.header("⛏️ Google Ads 數據深度挖掘")
-    st.info("上傳 CSV，自動進行 NLP 詞頻分析與五維度拆解。")
-    
-    uploaded_file = st.file_uploader("上傳 Keyword Planner CSV", type=['csv'])
-    
-    if uploaded_file:
-        try:
-            try: df = pd.read_csv(uploaded_file, header=2, encoding='utf-16', sep='\t')
-            except:
-                try: df = pd.read_csv(uploaded_file, header=2, encoding='utf-8')
-                except: df = pd.read_csv(uploaded_file, header=2, encoding='latin1')
+    # --- 模式二 ---
+    elif mode == "⛏️ 模式二：數據挖掘分析":
+        st.header("⛏️ Google Ads 數據深度挖掘")
+        st.info("上傳 CSV，自動進行 NLP 詞頻分析與五維度拆解。")
+        
+        uploaded_file = st.file_uploader("上傳 Keyword Planner CSV", type=['csv'])
+        
+        if uploaded_file:
+            try:
+                try: df = pd.read_csv(uploaded_file, header=2, encoding='utf-16', sep='\t')
+                except:
+                    try: df = pd.read_csv(uploaded_file, header=2, encoding='utf-8')
+                    except: df = pd.read_csv(uploaded_file, header=2, encoding='latin1')
 
-            df = clean_google_ads_data(df)
-            df['Avg. monthly searches'] = pd.to_numeric(df['Avg. monthly searches']).fillna(0)
+                df = clean_google_ads_data(df)
+                df['Avg. monthly searches'] = pd.to_numeric(df['Avg. monthly searches']).fillna(0)
 
-            # 計算指標
-            top_volume = df.sort_values('Avg. monthly searches', ascending=False).head(10)
-            growth_base = df[df['Avg. monthly searches'] > 50]
-            top_growth = growth_base.sort_values('YoY change', ascending=False).head(10)
-            top_decline = growth_base.sort_values('YoY change', ascending=True).head(10)
-            theme_freq = analyze_nlp(df[df['Avg. monthly searches'] > 10]['Keyword'], top_n=15)
-            red_ocean = df.sort_values('Top Page Bid (High)', ascending=False).head(10)
-            blue_ocean = df[(df['Avg. monthly searches'] > 100) & (df['Competition Index'] < 30)].sort_values('Avg. monthly searches', ascending=False).head(10)
+                # 計算指標
+                top_volume = df.sort_values('Avg. monthly searches', ascending=False).head(10)
+                growth_base = df[df['Avg. monthly searches'] > 50]
+                top_growth = growth_base.sort_values('YoY change', ascending=False).head(10)
+                top_decline = growth_base.sort_values('YoY change', ascending=True).head(10)
+                theme_freq = analyze_nlp(df[df['Avg. monthly searches'] > 10]['Keyword'], top_n=15)
+                red_ocean = df.sort_values('Top Page Bid (High)', ascending=False).head(10)
+                blue_ocean = df[(df['Avg. monthly searches'] > 100) & (df['Competition Index'] < 30)].sort_values('Avg. monthly searches', ascending=False).head(10)
 
-            # 顯示 Tabs
-            st.divider()
-            t1, t2, t3, t4, t5 = st.tabs(["📈 大盤", "🚀 機會", "📉 風險", "🧠 概念", "⚔️ 紅藍海"])
-            
-            with t1: st.dataframe(top_volume[['Keyword', 'Avg. monthly searches', 'YoY change']].style.background_gradient(subset=['Avg. monthly searches'], cmap='Greens'), use_container_width=True)
-            with t2: st.dataframe(top_growth[['Keyword', 'YoY change', 'Avg. monthly searches']].style.background_gradient(subset=['YoY change'], cmap='Reds'), use_container_width=True)
-            with t3: st.dataframe(top_decline[['Keyword', 'YoY change', 'Avg. monthly searches']].style.background_gradient(subset=['YoY change'], cmap='Greys'), use_container_width=True)
-            with t4: st.bar_chart(theme_freq.set_index('關鍵詞 (Term)'))
-            with t5:
-                c1, c2 = st.columns(2)
-                with c1: 
-                    st.markdown("🔥 **紅海 (高出價)**")
-                    st.dataframe(red_ocean[['Keyword', 'Top Page Bid (High)']], use_container_width=True)
-                with c2: 
-                    st.markdown("💧 **藍海 (低競爭)**")
-                    st.dataframe(blue_ocean[['Keyword', 'Competition Index', 'Avg. monthly searches']], use_container_width=True)
+                # 顯示 Tabs
+                st.divider()
+                t1, t2, t3, t4, t5 = st.tabs(["📈 大盤", "🚀 機會", "📉 風險", "🧠 概念", "⚔️ 紅藍海"])
+                
+                with t1: st.dataframe(top_volume[['Keyword', 'Avg. monthly searches', 'YoY change']].style.background_gradient(subset=['Avg. monthly searches'], cmap='Greens'), use_container_width=True)
+                with t2: st.dataframe(top_growth[['Keyword', 'YoY change', 'Avg. monthly searches']].style.background_gradient(subset=['YoY change'], cmap='Reds'), use_container_width=True)
+                with t3: st.dataframe(top_decline[['Keyword', 'YoY change', 'Avg. monthly searches']].style.background_gradient(subset=['YoY change'], cmap='Greys'), use_container_width=True)
+                with t4: st.bar_chart(theme_freq.set_index('關鍵詞 (Term)'))
+                with t5:
+                    c1, c2 = st.columns(2)
+                    with c1: 
+                        st.markdown("🔥 **紅海 (高出價)**")
+                        st.dataframe(red_ocean[['Keyword', 'Top Page Bid (High)']], use_container_width=True)
+                    with c2: 
+                        st.markdown("💧 **藍海 (低競爭)**")
+                        st.dataframe(blue_ocean[['Keyword', 'Competition Index', 'Avg. monthly searches']], use_container_width=True)
 
-            # AI 分析
-            st.divider()
-            if st.button("🧠 呼叫 Gemini 進行戰略解讀"):
-                with st.spinner("AI 顧問正在分析中..."):
-                    ctx = f"""
-                    1.大盤: {top_volume['Keyword'].tolist()}
-                    2.機會: {top_growth['Keyword'].tolist()}
-                    3.風險: {top_decline['Keyword'].tolist()}
-                    4.概念: {theme_freq.values.tolist()}
-                    5.紅海: {red_ocean['Keyword'].tolist()}
-                    6.藍海: {blue_ocean['Keyword'].tolist()}
-                    """
-                    prompt = f"""
-                    你是一位商業分析師。請根據這五個維度數據歸納：
-                    {ctx}
-                    請回答：
-                    1. **市場隱藏屬性？** (從NLP概念詞中發現了什麼特徵？)
-                    2. **新舊勢力交替？** (什麼規格在崛起 vs 消失？)
-                    3. **獲利建議？** (避開紅海，切入哪裡？)
-                    """
-                    res = call_gemini(prompt)
-                    st.markdown("### 🧠 Gemini 挖掘報告")
-                    st.markdown(res)
+                # AI 分析
+                st.divider()
+                if st.button("🧠 呼叫 Gemini 進行戰略解讀"):
+                    with st.spinner("AI 顧問正在分析中..."):
+                        ctx = f"""
+                        1.大盤: {top_volume['Keyword'].tolist()}
+                        2.機會: {top_growth['Keyword'].tolist()}
+                        3.風險: {top_decline['Keyword'].tolist()}
+                        4.概念: {theme_freq.values.tolist()}
+                        5.紅海: {red_ocean['Keyword'].tolist()}
+                        6.藍海: {blue_ocean['Keyword'].tolist()}
+                        """
+                        prompt = f"""
+                        你是一位商業分析師。請根據這五個維度數據歸納：
+                        {ctx}
+                        請回答：
+                        1. **市場隱藏屬性？** (從NLP概念詞中發現了什麼特徵？)
+                        2. **新舊勢力交替？** (什麼規格在崛起 vs 消失？)
+                        3. **獲利建議？** (避開紅海，切入哪裡？)
+                        """
+                        res = call_gemini(prompt)
+                        st.markdown("### 🧠 Gemini 挖掘報告")
+                        st.markdown(res)
 
-        except Exception as e:
-            st.error(f"CSV 解析失敗: {e}")
+            except Exception as e:
+                st.error(f"CSV 解析失敗: {e}")
