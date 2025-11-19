@@ -5,7 +5,14 @@ import jieba
 from collections import Counter
 import io
 import matplotlib.pyplot as plt # 確保引入 matplotlib
+# ... import 區域 ...
 
+# 建立一個全域計數器
+@st.cache_resource
+def get_usage_counter():
+    return {"count": 0}
+
+counter = get_usage_counter()
 # ==========================================
 # 1. 頁面設定
 # ==========================================
@@ -35,7 +42,12 @@ with st.sidebar:
     
     # 你的真實 Key 藏在這裡
     REAL_API_KEY = "AIzaSyB8i4WiAwK8DhszEYSYO13B0Y05mVi-zMc"
-    
+    if secret_pass == "丹尼斯好帥":
+        # ... 原本的驗證代碼 ...
+        
+        # 計數器 +1
+        counter["count"] += 1
+        st.sidebar.write(f"🔥 目前累積使用次數: {counter['count']}")
     if secret_pass == "丹尼斯好帥":
         try:
             genai.configure(api_key=REAL_API_KEY)
