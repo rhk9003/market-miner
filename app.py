@@ -409,11 +409,12 @@ elif mode == "⛏️ 詞彙結構分析":
     col_upload1, col_upload2 = st.columns(2)
     
     with col_upload1:
-        st.subheader("📊 Google Ads CSV")
-        uploaded_csv = st.file_uploader(
+        st.subheader("📊 Google Ads CSV（支援多檔）")
+        uploaded_csvs = st.file_uploader(
             "上傳 Keyword Planner CSV",
             type=['csv'],
-            key="csv_upload"
+            key="csv_upload",
+            accept_multiple_files=True
         )
     
     with col_upload2:
@@ -446,22 +447,51 @@ elif mode == "⛏️ 詞彙結構分析":
                 if intent_data:
                     st.success(f"✅ 已解析 {len(intent_data)} 筆意圖資料")
 
-    # 處理 CSV
-    if uploaded_csv:
+    # 處理 CSV（支援多檔合併）
+    if uploaded_csvs:
         try:
-            # 嘗試多種編碼
-            try:
-                df = pd.read_csv(uploaded_csv, header=2, encoding='utf-16', sep='\t')
-            except:
-                try:
-                    df = pd.read_csv(uploaded_csv, header=2, encoding='utf-8')
-                except:
-                    df = pd.read_csv(uploaded_csv, header=2, encoding='latin1')
+            all_dfs = []
+            file_stats = []
             
-            df = clean_google_ads_data(df)
+            for uploaded_csv in uploaded_csvs:
+                # 嘗試多種編碼
+                try:
+                    single_df = pd.read_csv(uploaded_csv, header=2, encoding='utf-16', sep='\t')
+                except:
+                    try:
+                        single_df = pd.read_csv(uploaded_csv, header=2, encoding='utf-8')
+                    except:
+                        single_df = pd.read_csv(uploaded_csv, header=2, encoding='latin1')
+                
+                single_df = clean_google_ads_data(single_df)
+                single_df['_source_file'] = uploaded_csv.name  # 標記來源
+                all_dfs.append(single_df)
+                file_stats.append({
+                    'file': uploaded_csv.name,
+                    'rows': len(single_df)
+                })
+            
+            # 合併所有檔案
+            df = pd.concat(all_dfs, ignore_index=True)
+            
+            # 去重（同關鍵字保留搜尋量較高的）
+            df = df.sort_values('Avg. monthly searches', ascending=False)
+            df = df.drop_duplicates(subset=['Keyword'], keep='first')
             
             st.divider()
-            st.success(f"✅ 已載入 {len(df)} 筆關鍵字")
+            
+            # 顯示檔案統計
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            with col_stat1:
+                st.metric("上傳檔案數", len(uploaded_csvs))
+            with col_stat2:
+                st.metric("合併後關鍵字", len(df))
+            with col_stat3:
+                st.metric("去重前總數", sum(f['rows'] for f in file_stats))
+            
+            with st.expander("📁 檔案明細"):
+                for f in file_stats:
+                    st.caption(f"• {f['file']}: {f['rows']} 筆")
             
             # 顯示意圖摘要（如果有）
             if intent_data:
@@ -667,22 +697,35 @@ elif mode == "🔗 詞彙關聯探勘":
     st.header("🔗 詞彙關聯 × 共現分析")
     st.info("分析詞與詞之間的關聯性，找出隱藏的語意結構")
     
-    uploaded_csv = st.file_uploader("上傳 Keyword Planner CSV", type=['csv'])
+    uploaded_csvs = st.file_uploader(
+        "上傳 Keyword Planner CSV（支援多檔）", 
+        type=['csv'],
+        accept_multiple_files=True
+    )
     
-    if uploaded_csv:
+    if uploaded_csvs:
         try:
-            try:
-                df = pd.read_csv(uploaded_csv, header=2, encoding='utf-16', sep='\t')
-            except:
-                try:
-                    df = pd.read_csv(uploaded_csv, header=2, encoding='utf-8')
-                except:
-                    df = pd.read_csv(uploaded_csv, header=2, encoding='latin1')
+            all_dfs = []
             
-            df = clean_google_ads_data(df)
+            for uploaded_csv in uploaded_csvs:
+                try:
+                    single_df = pd.read_csv(uploaded_csv, header=2, encoding='utf-16', sep='\t')
+                except:
+                    try:
+                        single_df = pd.read_csv(uploaded_csv, header=2, encoding='utf-8')
+                    except:
+                        single_df = pd.read_csv(uploaded_csv, header=2, encoding='latin1')
+                
+                single_df = clean_google_ads_data(single_df)
+                all_dfs.append(single_df)
+            
+            df = pd.concat(all_dfs, ignore_index=True)
+            df = df.sort_values('Avg. monthly searches', ascending=False)
+            df = df.drop_duplicates(subset=['Keyword'], keep='first')
+            
             keywords_col = df['Keyword'] if 'Keyword' in df.columns else df.iloc[:, 0]
             
-            st.success(f"✅ 已載入 {len(df)} 筆關鍵字")
+            st.success(f"✅ 已載入 {len(uploaded_csvs)} 個檔案，合併 {len(df)} 筆關鍵字")
             st.divider()
             
             tab_cooccur, tab_ngram, tab_network = st.tabs([
