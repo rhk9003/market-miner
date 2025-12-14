@@ -63,6 +63,20 @@ with st.sidebar:
         st.warning("⚠️ 請輸入 Key 啟用 AI")
 
     st.markdown("---")
+    st.subheader("🧠 模型選擇")
+    selected_model = st.selectbox(
+        "Gemini 模型",
+        [
+            "gemini-2.0-flash",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+        ],
+        index=0,
+        help="Flash 較快較便宜，Pro 較精準"
+    )
+    st.session_state['selected_model'] = selected_model
+    
+    st.markdown("---")
     st.metric("本次使用次數", st.session_state['usage_count'])
     
     st.markdown("---")
@@ -80,12 +94,16 @@ with st.sidebar:
 # ==========================================
 # 3. 核心函數
 # ==========================================
-def call_gemini(prompt, model_name="gemini-2.0-flash"):
+def call_gemini(prompt, model_name=None):
     """呼叫 Gemini API"""
     if not api_key:
         return "⚠️ 請先輸入 API Key"
+    
+    # 使用傳入的模型或 sidebar 選擇的模型
+    use_model = model_name if model_name else st.session_state.get('selected_model', 'gemini-2.0-flash')
+    
     try:
-        model = genai.GenerativeModel(model_name)
+        model = genai.GenerativeModel(use_model)
         response = model.generate_content(prompt)
         st.session_state['usage_count'] += 1
         return response.text
@@ -651,7 +669,7 @@ elif mode == "⛏️ 詞彙結構分析":
                             請用繁體中文回答，直接輸出分析，不要重複數據。
                             """
                             
-                            result = call_gemini(prompt, model_name="gemini-2.0-flash")
+                            result = call_gemini(prompt)
                             st.markdown(result)
             
             # ===== Excel 下載 =====
